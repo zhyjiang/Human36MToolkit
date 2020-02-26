@@ -4,20 +4,36 @@ import glob
 from scipy.io import loadmat
 import cv2
 import numpy as np
+import random
 
 import torch
 import torch.nn as nn
 
-from utils.tools import pose_world_to_cam, pose_cam_to_pixel, draw_skeleton
+file_path = os.path.dirname(os.path.realpath(__file__))
+cwd = os.getcwd()
+
+if file_path != cwd:
+    from .utils.tools import pose_world_to_cam, pose_cam_to_pixel, draw_skeleton
+    from .config import H36mDatasetCfg
+    from .utils.augment import augment
+else:
+    from utils.tools import pose_world_to_cam, pose_cam_to_pixel, draw_skeleton
+    from config import H36mDatasetCfg
+    from utils.augment import augment
 
 
 class Human36mDataset(torch.utils.data.Dataset):
-    def __init__(self, data_root, protocols=[1, 5, 6, 7, 8], is_train=True, is_aug=False):
+    def __init__(self, data_root, protocols=[1, 5, 6, 7, 8], is_train=True, config=None):
         super(Human36mDataset, self).__init__()
         self.protocols = protocols
         self.is_train = is_train
         self.data_root = data_root
-        self.is_aug = is_aug
+        if config is not None:
+            self.config = config
+        else:
+            self.config = H36mDatasetCfg
+        self.is_aug = self.config['is_aug']
+        self.with_bbox = self.config['with_bbox']
         self.images_root = os.path.join(self.data_root, 'images')
         self.anno_root = os.path.join(self.data_root, 'annotations')
 
@@ -30,6 +46,7 @@ class Human36mDataset(torch.utils.data.Dataset):
 
         # self.camera_params = self.load_cam_params(self.anno_root, self.protocols)
         self.seqs_folder = []
+
         for subject in protocols:
             self.seqs_folder.extend([os.path.basename(seq_path)
                                      for seq_path in
@@ -60,13 +77,19 @@ class Human36mDataset(torch.utils.data.Dataset):
         pose2d = pose_cam_to_pixel(pose3d, cxy, fxy)
         image = cv2.imread(os.path.join(self.images_root, self.seqs_folder[seq_id],
                                         '%s_%06d.jpg' % (self.seqs_folder[seq_id], frame_id + 1)))
-        return pose2d, pose3d, image
+        if self.with_bbox:
+            bbox = self.meta_data[seq_id]['bbox'][frame_id]
+        else:
+            bbox = None
+        if self.is_aug and random.random() < self.config['aug_ratio']:
+            pose2d, pose3d, bbox, image = augment(pose2d, pose3d, bbox, image, self.config['augmentation'])
+        return pose2d, pose3d, bbox, image
 
 
 if __name__ == '__main__':
-    a = Human36mDataset('/home/zhongyu/data/Human3.6m')
+    a = Human36mDataset('/home/zhongyu/data/Human3.6m', protocols=[1])
     for i in range(100, 110):
-        pose2d, pose3d, img = a[i]
+        pose2d, pose3d, _, img = a[i]
         img = draw_skeleton(img, np.concatenate((pose2d, np.ones((17, 1))), axis=1), a.skeleton)
         cv2.imshow('test', img)
         cv2.waitKey()
