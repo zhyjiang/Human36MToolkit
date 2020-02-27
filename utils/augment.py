@@ -9,7 +9,7 @@ class Augmentation:
         self.config = config
 
     def brightness(self, pose2d, pose3d, bbox, image):
-        adjust = random.randint(-self.config['aug_params']['brightness'], self.config['aug_params']['brightness'])
+        adjust = random.randint(-self.config['brightness'], self.config['brightness'])
         image = image + adjust
         image[image > 255] = 255
         image[image < 0] = 0

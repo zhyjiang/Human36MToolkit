@@ -82,7 +82,8 @@ class Human36mDataset(torch.utils.data.Dataset):
         else:
             bbox = None
         if self.is_aug and random.random() < self.config['aug_ratio']:
-            pose2d, pose3d, bbox, image = augment(pose2d, pose3d, bbox, image, self.config['augmentation'])
+            pose2d, pose3d, bbox, image = augment(pose2d, pose3d, bbox, image, self.config['augmentation'],
+                                                  self.config['aug_params'])
         return pose2d, pose3d, bbox, image
 
 

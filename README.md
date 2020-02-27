@@ -1,6 +1,6 @@
 ## IPL Human36MToolkit
 
-#### Introduction
+### Introduction
 
 This is a toolkit for Human36m dataset.
 
@@ -27,7 +27,7 @@ Human3.6m
 
 Finally, remove an empty folder `s_11_act_02_subact_02_ca_01` in `images`.
 
-#### Usage
+### Usage
 
 ```shell script
 cd {Path}
