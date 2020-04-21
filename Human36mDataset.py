@@ -5,6 +5,8 @@ from scipy.io import loadmat
 import cv2
 import numpy as np
 import random
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 
 import torch
 import torch.nn as nn
@@ -16,10 +18,12 @@ if file_path != cwd:
     from .utils.tools import pose_world_to_cam, pose_cam_to_pixel, draw_skeleton, normalize_3d_pose
     from .config import H36mDatasetCfg
     from .utils.augment import augment
+    # from .CylinderModel.BodyCylinder import BodyCylinder
 else:
     from utils.tools import pose_world_to_cam, pose_cam_to_pixel, draw_skeleton, normalize_3d_pose
     from config import H36mDatasetCfg
     from utils.augment import augment
+    from CylinderModel.BodyCylinder import BodyCylinder
 
 
 class GenerateHeatmap:
@@ -55,12 +59,20 @@ class GenerateHeatmap:
 
 
 class Human36mDataset(torch.utils.data.Dataset):
+    skeleton = ((0, 7), (7, 8), (8, 9), (9, 10), (8, 11), (11, 12), (12, 13), (8, 14),
+                (14, 15), (15, 16), (0, 1), (1, 2), (2, 3), (0, 4), (4, 5), (5, 6))
+    flip_pair = ((1, 4), (2, 5), (3, 6), (14, 11), (15, 12), (16, 13))
+    joint_name = ('Pelvis', 'R_Hip', 'R_Knee', 'R_Ankle', 'L_Hip', 'L_Knee', 'L_Ankle', 'Torso', 'Neck',
+                       'Nose', 'Head', 'L_Shoulder', 'L_Elbow', 'L_Wrist', 'R_Shoulder', 'R_Elbow', 'R_Wrist',
+                       'Thorax')
+
     def __init__(self, data_root, protocols=[1, 5, 6, 7, 8], is_train=True, heatmap=False, config=None):
         super(Human36mDataset, self).__init__()
         self.protocols = protocols
         self.is_train = is_train
         self.data_root = data_root
         self.heatmap = heatmap
+        # self.body_cylinder = BodyCylinder()
         if config is not None:
             self.config = config
         else:
@@ -71,13 +83,6 @@ class Human36mDataset(torch.utils.data.Dataset):
         self.with_bbox = self.config['with_bbox']
         self.images_root = os.path.join(self.data_root, 'images')
         self.anno_root = os.path.join(self.data_root, 'annotations')
-
-        self.skeleton = ((0, 7), (7, 8), (8, 9), (9, 10), (8, 11), (11, 12), (12, 13), (8, 14),
-                         (14, 15), (15, 16), (0, 1), (1, 2), (2, 3), (0, 4), (4, 5), (5, 6))
-        self.flip_pair = ((1, 4), (2, 5), (3, 6), (14, 11), (15, 12), (16, 13))
-        self.joint_name = ('Pelvis', 'R_Hip', 'R_Knee', 'R_Ankle', 'L_Hip', 'L_Knee', 'L_Ankle', 'Torso', 'Neck',
-                           'Nose', 'Head', 'L_Shoulder', 'L_Elbow', 'L_Wrist', 'R_Shoulder', 'R_Elbow', 'R_Wrist',
-                           'Thorax')
 
         # self.camera_params = self.load_cam_params(self.anno_root, self.protocols)
         self.seqs_folder = []
@@ -103,6 +108,60 @@ class Human36mDataset(torch.utils.data.Dataset):
 
     def __len__(self):
         return self.length
+
+    @staticmethod
+    def draw_skeleton_3d(skeleton):
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+
+        max_range = np.array([1.5, 1.5, 1.5]).max() / 2.0
+        mid_x = 0
+        mid_y = 0
+        mid_z = 0
+        ax.set_xlim(mid_x - max_range, mid_x + max_range)
+        ax.set_ylim(mid_y - max_range, mid_y + max_range)
+        ax.set_zlim(mid_z - max_range, mid_z + max_range)
+
+        for i in range(17):
+            ax.scatter(skeleton[i:i+1, 0], skeleton[i:i+1, 2], -skeleton[i:i+1, 1], c='r', marker='o')
+
+        pair = Human36mDataset.skeleton
+        for i in range(len(pair)):
+            ax.plot([skeleton[pair[i][0], 0], skeleton[pair[i][1], 0]],
+                    [skeleton[pair[i][0], 2], skeleton[pair[i][1], 2]],
+                    [-skeleton[pair[i][0], 1], -skeleton[pair[i][1], 1]], color='r')
+        plt.savefig('temp.png')
+        img = plt.imread('temp.png')
+        plt.close()
+        return img
+
+    @staticmethod
+    def draw_skeletons_3d(skeletons):
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+
+        max_range = np.array([1.5, 1.5, 1.5]).max() / 2.0
+        mid_x = 0
+        mid_y = 0
+        mid_z = 0
+        ax.set_xlim(mid_x - max_range, mid_x + max_range)
+        ax.set_ylim(mid_y - max_range, mid_y + max_range)
+        ax.set_zlim(mid_z - max_range, mid_z + max_range)
+
+        colors = ['r', 'g', 'b']
+        for index, skeleton in enumerate(skeletons):
+            for i in range(17):
+                ax.scatter(skeleton[i:i+1, 0], skeleton[i:i+1, 2], -skeleton[i:i+1, 1], c=colors[index], marker='o')
+
+            pair = Human36mDataset.skeleton
+            for i in range(len(pair)):
+                ax.plot([skeleton[pair[i][0], 0], skeleton[pair[i][1], 0]],
+                        [skeleton[pair[i][0], 2], skeleton[pair[i][1], 2]],
+                        [-skeleton[pair[i][0], 1], -skeleton[pair[i][1], 1]], color=colors[index])
+        plt.savefig('temp.png')
+        img = plt.imread('temp.png')
+        plt.close()
+        return img
 
     def __getitem__(self, index):
         seq_id, frame_id = self.index_mapping[index]
@@ -132,17 +191,14 @@ class Human36mDataset(torch.utils.data.Dataset):
         if self.config['normalize_3d_pose']:
             pose3d = normalize_3d_pose(pose3d)
 
+        data = {'pose2d': pose2d, 'pose3d': pose3d, 'bbox': bbox, 'image': image}
+
         if self.heatmap:
             heatmap = self.generate_heatmap(pose2d)
-            return pose2d, pose3d, bbox, image, heatmap
+            data['heatmap'] = heatmap
 
-        return pose2d, pose3d, bbox, image
+        return data
 
 
 if __name__ == '__main__':
-    a = Human36mDataset('/home/zhongyu/data/Human3.6m', protocols=[1])
-    for i in range(100, 110):
-        pose2d, pose3d, _, img = a[i]
-        img = draw_skeleton(img, np.concatenate((pose2d, np.ones((17, 1))), axis=1), a.skeleton)
-        cv2.imshow('test', img)
-        cv2.waitKey()
+    pass
