@@ -2,6 +2,8 @@ import numpy as np
 import random
 import cv2
 
+def distance_pp(point1, point2):
+    return np.sqrt(np.sum((point2 - point1)**2))
 
 def pose_world_to_cam(pose3d_world, R, T):
     pose3d = np.dot(R, (pose3d_world - T).T).T
@@ -29,3 +31,20 @@ def draw_skeleton(img, pose2d, skeleton, thre=0.5):
             cv2.line(img, tuple(pose2d[skeleton[i][0], :2].astype(np.int)),
                      tuple(pose2d[skeleton[i][1], :2].astype(np.int)), color, 1)
     return img
+
+
+def normalize_3d_pose(pose3d):
+    pose_center = (pose3d[1] + pose3d[4]) / 2
+    dist = distance_pp(pose_center, pose3d[8])
+    pose3d = pose3d - pose_center
+    pose3d = pose3d / dist
+    return pose3d
+
+
+def get_keypoints(heatmap):
+    keypoints = []
+    for i in range(heatmap.shape[0]):
+        index = np.argmax(heatmap[i, :, :])
+        keypoints.append([int(index % heatmap.shape[2]), int(index // heatmap.shape[2]), np.max(heatmap[i, :, :])])
+    return np.array(keypoints)
+
